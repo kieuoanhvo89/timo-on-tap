@@ -124,8 +124,11 @@ const prev=()=>S.cur>0&&jump(S.cur-1),next=()=>S.cur<S.ex.items.length-1&&jump(S
 function quit(){modal(`<h2>Thoát khỏi đề?</h2><p>Bài làm hiện tại được lưu lại, em có thể làm tiếp sau. Thời gian vẫn chạy.</p><div class="row"><button class="p" onclick="modal('');go('exams')">Thoát</button><button onclick="modal('')">Làm tiếp</button></div>`)}
 function askSubmit(){const d=dr(),n=S.ex.items.length;const a=Object.keys(d.a).filter(k=>(d.a[k]||'').trim()).length;const fl=Object.keys(d.f).filter(k=>d.f[k]).length;
  modal(`<h2>Nộp bài?</h2><p>Em đã trả lời ${a}/${n} câu.${a<n?` Còn ${n-a} câu chưa trả lời.`:''}${fl?` Có ${fl} câu đang đánh dấu xem lại.`:''}</p><div class="row"><button class="p" onclick="doSubmit()">Nộp bài</button><button onclick="modal('')">Làm tiếp</button></div>`)}
+const LOG_URL='https://script.google.com/macros/s/AKfycbxnCaqu0JndDTmsWzWG_L14bNd9zOROFNgffV4-TQRBmaJDZaOVp60GjwVb40N5FLS7Zw/exec';
+function devId(){let d=LS.get('timo5:dev');if(!d){d='d'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);LS.set('timo5:dev',d)}return d}
+function sendLog(o){try{if(!LOG_URL)return;fetch(LOG_URL,{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(o)}).catch(()=>{})}catch(e){}}
 function doSubmit(){modal('');stopTick();const p=getProf(),d=p.dr[S.ex.id];const g=grade(S.ex,d.a);const used=Math.min(5400,Math.max(0,5400-Math.round((d.end-Date.now())/1000)));
- const at={ex:S.ex.id,t:Date.now(),sc:g.sc,ok:g.ok,used,a:d.a};p.att.push(at);delete p.dr[S.ex.id];setProf(p);S.att=at;S.filter='all';go('result')}
+ const at={ex:S.ex.id,t:Date.now(),sc:g.sc,ok:g.ok,used,a:d.a};p.att.push(at);delete p.dr[S.ex.id];setProf(p);S.att=at;S.filter='all';try{sendLog({name:S.name,level:S.lv.name,exam:S.ex.title,score:g.sc,ok:g.ok,mins:Math.round(used/60),dev:devId()})}catch(e){}go('result')}
 // ---------- result
 function vResult(){const ex=S.ex,at=S.att,g=grade(ex,at.a),n=ex.items.length;const bl=ex.items.filter((_,i)=>!String(at.a[i]||'').trim()).length;
  const list=ex.items.map((it,i)=>{const u=String(at.a[i]||'').trim(),st=!u?'bl':g.det[i]?'ok':'no';return{it,i,u,st}}).filter(x=>S.filter==='all'||(S.filter==='no'&&x.st==='no')||(S.filter==='bl'&&x.st==='bl'));
