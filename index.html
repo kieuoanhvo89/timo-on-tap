@@ -96,7 +96,7 @@ function openLevel(i){S.lv=LV[i];go('exams')}
 function vExams(){const p=getProf(),lv=S.lv;
  app.innerHTML=head()+userbar()+`<div class="row"><button class="g" onclick="go('levels')">← Chọn lớp khác</button></div><h2>${lv.name} · Chọn đề</h2><div class="mu sm">Mỗi đề có 25 câu, mỗi câu 4 điểm, làm trong 90 phút.</div><div class="grid">`+lv.exams.map((ex,i)=>{
  const at=p.att.filter(a=>a.ex===ex.id),best=at.length?Math.max(...at.map(a=>a.sc)):null,last=at[at.length-1],dr=p.dr[ex.id];
- return `<div class="card" style="margin:0"><h3>${esc(ex.title)}</h3><div class="mu sm">${dr?'Đang làm dở':at.length?`Lần gần nhất: ${last.sc}/100 · Cao nhất: ${best}/100`:'Chưa làm'}</div><div class="row"><button class="p" onclick="startExam(${i})">${dr?'Làm tiếp':at.length?'Làm lại':'Bắt đầu'}</button>${at.length?`<button class="sm" onclick="viewAtt(${i})">Xem bài gần nhất</button>`:''}</div></div>`}).join('')+`</div>`+foot(S.lv)}
+ return `<div class="card" style="margin:0"><h3>${esc(ex.title)}</h3><div class="mu sm">${dr?'Đang làm dở':at.length?`Lần gần nhất: ${last.sc}/100 · Cao nhất: ${best}/100`:'Chưa làm'}</div><div class="row"><button class="p" onclick="startExam(${i})">${dr?'Làm tiếp':at.length?'Làm lại':'Bắt đầu'}</button>${at.length?`<button class="sm" onclick="viewAtt(${i})">Xem bài gần nhất</button>`:''}<button class="sm" onclick="showRank(S.lv.exams[${i}])">🏆 Xếp hạng</button></div></div>`}).join('')+`</div>`+foot(S.lv)}
 function startExam(i,fresh){const ex=S.lv.exams[i],p=getProf();S.ex=ex;if(fresh)delete p.dr[ex.id];if(!p.dr[ex.id])p.dr[ex.id]={a:{},f:{},end:Date.now()+5400000,cur:0};setProf(p);S.cur=p.dr[ex.id].cur||0;go('test')}
 function viewAtt(i){const ex=S.lv.exams[i],p=getProf();const at=p.att.filter(a=>a.ex===ex.id);S.ex=ex;S.att=at[at.length-1];S.filter='all';go('result')}
 // ---------- test
@@ -127,15 +127,32 @@ function askSubmit(){const d=dr(),n=S.ex.items.length;const a=Object.keys(d.a).f
 const LOG_URL='https://script.google.com/macros/s/AKfycbxnCaqu0JndDTmsWzWG_L14bNd9zOROFNgffV4-TQRBmaJDZaOVp60GjwVb40N5FLS7Zw/exec';
 function devId(){let d=LS.get('timo5:dev');if(!d){d='d'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);LS.set('timo5:dev',d)}return d}
 function sendLog(o){try{if(!LOG_URL)return;fetch(LOG_URL,{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(o)}).catch(()=>{})}catch(e){}}
+async function showRank(ex){
+ if(!LOG_URL)return;
+ modal(`<h3 style="margin:0 0 2px">🏆 Bảng xếp hạng</h3><div class="mu sm">${S.lv.name} · ${esc(ex.title)}</div><div id="rk" class="mu" style="margin:12px 0;max-height:60vh;overflow:auto">Đang tải…</div><div class="row"><button class="p" onclick="modal('')">Đóng</button></div>`);
+ const box=()=>document.getElementById('rk');
+ try{
+  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),15000);
+  const r=await fetch(LOG_URL+'?action=rank&level='+encodeURIComponent(S.lv.name)+'&exam='+encodeURIComponent(ex.title)+'&name='+encodeURIComponent(S.name),{signal:ctrl.signal});
+  clearTimeout(to);const j=await r.json();if(!box())return;
+  const md=['🥇','🥈','🥉'];
+  const row=x=>`<div style="display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:8px;${x.you?'background:var(--soft);font-weight:700;':''}"><span style="width:30px">${x.r<=3?md[x.r-1]:x.r}</span><span style="flex:1">${esc(x.n)}${x.you?' (em)':''}</span><span>${x.sc}đ</span><span class="mu sm" style="width:52px;text-align:right">${fmt(Math.round(x.m*60))}</span></div>`;
+  if(!j.total){box().innerHTML='Chưa có bạn nào nộp đề này. Em hãy là người đầu tiên nhé!';return}
+  let h=j.top.map(row).join('');
+  if(j.me&&!j.top.some(x=>x.you))h+=`<div class="mu" style="text-align:center">···</div>`+row(j.me);
+  h+=`<div class="mu sm" style="margin-top:8px">${j.me?`Em đứng hạng <b>${j.me.r}</b>/${j.total} bạn.`:'Em chưa có bài nào của đề này trên bảng.'} Xếp theo điểm cao nhất, nếu bằng điểm thì ai làm nhanh hơn xếp trên.</div>`;
+  box().innerHTML=h;
+ }catch(e){if(box())box().innerHTML='Chưa tải được bảng xếp hạng. Em kiểm tra mạng rồi thử lại nhé.'}
+}
 function doSubmit(){modal('');stopTick();const p=getProf(),d=p.dr[S.ex.id];const g=grade(S.ex,d.a);const used=Math.min(5400,Math.max(0,5400-Math.round((d.end-Date.now())/1000)));
- const at={ex:S.ex.id,t:Date.now(),sc:g.sc,ok:g.ok,used,a:d.a};p.att.push(at);delete p.dr[S.ex.id];setProf(p);S.att=at;S.filter='all';try{sendLog({name:S.name,level:S.lv.name,exam:S.ex.title,score:g.sc,ok:g.ok,mins:Math.round(used/60),dev:devId()})}catch(e){}go('result')}
+ const at={ex:S.ex.id,t:Date.now(),sc:g.sc,ok:g.ok,used,a:d.a};p.att.push(at);delete p.dr[S.ex.id];setProf(p);S.att=at;S.filter='all';try{sendLog({name:S.name,level:S.lv.name,exam:S.ex.title,score:g.sc,ok:g.ok,mins:+(used/60).toFixed(2),dev:devId()})}catch(e){}go('result')}
 // ---------- result
 function vResult(){const ex=S.ex,at=S.att,g=grade(ex,at.a),n=ex.items.length;const bl=ex.items.filter((_,i)=>!String(at.a[i]||'').trim()).length;
  const list=ex.items.map((it,i)=>{const u=String(at.a[i]||'').trim(),st=!u?'bl':g.det[i]?'ok':'no';return{it,i,u,st}}).filter(x=>S.filter==='all'||(S.filter==='no'&&x.st==='no')||(S.filter==='bl'&&x.st==='bl'));
  const dt=new Date(at.t);
  app.innerHTML=head()+userbar()+`<div class="row"><button class="g" onclick="go('exams')">← Danh sách đề</button></div>
  <div class="card"><div class="mu sm">${S.lv.name} · ${esc(ex.title)}</div><div class="sc">${g.sc}/100</div><div>Đúng <b>${g.ok}</b>/${n} câu · Thời gian làm ${fmt(at.used)}</div><div class="mu sm">${dt.toLocaleString('vi-VN')}</div>
- <div class="row"><button class="p" id="pdfb" onclick="savePdf()">Lưu bài làm kèm lời giải (PDF)</button><button onclick="redo()">Làm lại đề này</button></div><div class="mu sm" id="pdfm"></div></div>
+ <div class="row"><button class="p" id="pdfb" onclick="savePdf()">Lưu bài làm kèm lời giải (PDF)</button><button onclick="redo()">Làm lại đề này</button><button onclick="showRank(S.ex)">🏆 Bảng xếp hạng</button></div><div class="mu sm" id="pdfm"></div></div>
  <div class="card"><h3 style="margin-bottom:2px">Kết quả từng câu</h3>${navHtml('r',{det:g.det,a:at.a})}<div class="lg"><span><b style="background:var(--ok)"></b>Đúng</span><span><b style="background:var(--no)"></b>Sai</span><span><b style="background:var(--soft)"></b>Chưa trả lời</span></div></div>
  <div class="row"><span class="mu sm">Xem:</span>${[['all','Tất cả'],['no','Câu sai ('+(n-g.ok-bl)+')'],['bl','Chưa làm ('+bl+')']].map(([k,l])=>`<button class="sm ${S.filter===k?'p':''}" onclick="S.filter='${k}';vResult()">${l}</button>`).join('')}</div>`+
  list.map(({it,i,u,st})=>`<div class="qc ${st}" id="q${i}"><div class="row" style="margin:0"><span class="qn">Câu ${i+1}</span><span class="chip ${st==='ok'?'ok':st==='no'?'no':''}">${st==='ok'?'Đúng · +4':st==='no'?'Sai · 0':'Chưa trả lời · 0'}</span></div><div class="qt">${it[0]}</div>
